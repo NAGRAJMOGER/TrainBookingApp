@@ -18,14 +18,15 @@ public class TrainService : ITrainService
 
     public async Task<List<Schedule>> SearchTrainsAsync(int originId, int destinationId, DateTime travelDate)
     {
-        return await _context.Schedules
+        var schedules = await _context.Schedules
             .Include(s => s.Train)
             .Include(s => s.OriginStation)
             .Include(s => s.DestinationStation)
             .Include(s => s.Seats)
             .Where(s => s.OriginStationId == originId && s.DestinationStationId == destinationId)
-            .OrderBy(s => s.DepartureTime)
             .ToListAsync();
+        
+        return schedules.OrderBy(s => s.DepartureTime).ToList();
     }
 
     public async Task<Schedule?> GetScheduleByIdAsync(int scheduleId)
