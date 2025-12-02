@@ -1,0 +1,257 @@
+@page "/booking-summary"
+@rendermode InteractiveServer
+@inject ITrainService TrainService
+@inject IBookingService BookingService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager NavigationManager
+@attribute [Authorize]
+
+<PageTitle>Booking Summary - TrainBookingApp</PageTitle>
+
+<div class="container mt-4">
+    @if (schedule == null || passengers == null)
+    {
+        <div class="text-center">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="row">
+            <div class="col-12">
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item"><a href="/search">Search</a></li>
+                        <li class="breadcrumb-item">Seat Selection</li>
+                        <li class="breadcrumb-item">Passenger Details</li>
+                        <li class="breadcrumb-item active" aria-current="page">Summary</li>
+                    </ol>
+                </nav>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-lg-8">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <h4 class="mb-0">Booking Summary</h4>
+                    </div>
+                    <div class="card-body">
+                        <h5 class="mb-3">Journey Details</h5>
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <p class="mb-2"><strong>Train:</strong> @schedule.Train.TrainName (#@schedule.Train.TrainNumber)</p>
+                                <p class="mb-2"><strong>From:</strong> @schedule.OriginStation.Name (@schedule.OriginStation.Code)</p>
+                                <p class="mb-2"><strong>To:</strong> @schedule.DestinationStation.Name (@schedule.DestinationStation.Code)</p>
+                            </div>
+                            <div class="col-md-6">
+                                <p class="mb-2"><strong>Travel Date:</strong> @TravelDate.ToString("dd MMM yyyy")</p>
+                                <p class="mb-2"><strong>Departure:</strong> @schedule.DepartureTime.ToString(@"hh\:mm")</p>
+                                <p class="mb-2"><strong>Arrival:</strong> @schedule.ArrivalTime.ToString(@"hh\:mm")</p>
+                                <p class="mb-2"><strong>Class:</strong> @schedule.SeatClass</p>
+                            </div>
+                        </div>
+
+                        <h5 class="mb-3">Passenger Details</h5>
+                        <div class="table-responsive mb-4">
+                            <table class="table table-bordered">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>S.No</th>
+                                        <th>Name</th>
+                                        <th>Age</th>
+                                        <th>Gender</th>
+                                        <th>Seat</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @for (int i = 0; i < passengers.Count; i++)
+                                    {
+                                        <tr>
+                                            <td>@(i + 1)</td>
+                                            <td>@passengers[i].FullName</td>
+                                            <td>@passengers[i].Age</td>
+                                            <td>@passengers[i].Gender</td>
+                                            <td>@GetSeatNumber(i)</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <h5 class="mb-3">Contact Details</h5>
+                        <div class="mb-4">
+                            <p class="mb-2"><strong>Email:</strong> @passengers[0].Email</p>
+                            <p class="mb-2"><strong>Phone:</strong> @passengers[0].ContactNumber</p>
+                        </div>
+
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle me-2"></i>
+                            <strong>Note:</strong> Please review all details carefully before confirming the booking. 
+                            Your ticket will be sent to the provided email address.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-4">
+                <div class="card shadow-sm mb-4 sticky-top" style="top: 20px;">
+                    <div class="card-header bg-light">
+                        <h5 class="mb-0">Payment Summary</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between mb-2">
+                                <span>Base Fare (@PassengerCount × ₹@schedule.Price):</span>
+                                <span>₹@((schedule.Price * PassengerCount).ToString("N2"))</span>
+                            </div>
+                            <hr />
+                            <div class="d-flex justify-content-between">
+                                <strong class="fs-5">Total Amount:</strong>
+                                <strong class="text-primary fs-4">₹@((schedule.Price * PassengerCount).ToString("N2"))</strong>
+                            </div>
+                        </div>
+
+                        @if (!string.IsNullOrEmpty(errorMessage))
+                        {
+                            <div class="alert alert-danger" role="alert">
+                                @errorMessage
+                            </div>
+                        }
+
+                        <button class="btn btn-success w-100 btn-lg" @onclick="ConfirmBooking" disabled="@isProcessing">
+                            @if (isProcessing)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                <text>Processing</text>
+                            }
+                            else
+                            {
+                                <i class="bi bi-check-circle me-2"></i>
+                                <text>Confirm Booking</text>
+                            }
+                        </button>
+
+                        <button class="btn btn-outline-secondary w-100 mt-2" @onclick="GoBack" disabled="@isProcessing">
+                            <i class="bi bi-arrow-left me-2"></i>Edit Details
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [SupplyParameterFromQuery]
+    public int ScheduleId { get; set; }
+
+    [SupplyParameterFromQuery]
+    public int PassengerCount { get; set; }
+
+    [SupplyParameterFromQuery]
+    public DateTime TravelDate { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? SeatIds { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? Passengers { get; set; }
+
+    private Schedule? schedule;
+    private List<PassengerDetails.PassengerInfo>? passengers;
+    private List<int> seatIdList = new();
+    private List<Seat> selectedSeats = new();
+    private string? errorMessage;
+    private bool isProcessing = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (ScheduleId <= 0 || PassengerCount <= 0 || string.IsNullOrEmpty(SeatIds) || string.IsNullOrEmpty(Passengers))
+        {
+            NavigationManager.NavigateTo("/search");
+            return;
+        }
+
+        try
+        {
+            schedule = await TrainService.GetScheduleByIdAsync(ScheduleId);
+            var decodedPassengers = System.Web.HttpUtility.UrlDecode(Passengers);
+            passengers = System.Text.Json.JsonSerializer.Deserialize<List<PassengerDetails.PassengerInfo>>(decodedPassengers);
+            
+            seatIdList = SeatIds.Split(',').Select(int.Parse).ToList();
+            if (schedule != null)
+            {
+                selectedSeats = schedule.Seats.Where(s => seatIdList.Contains(s.Id)).ToList();
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error loading booking details: {ex.Message}";
+        }
+    }
+
+    private string GetSeatNumber(int index)
+    {
+        return index < selectedSeats.Count ? selectedSeats[index].SeatNumber : "N/A";
+    }
+
+    private async Task ConfirmBooking()
+    {
+        if (schedule == null || passengers == null)
+            return;
+
+        isProcessing = true;
+        errorMessage = null;
+
+        try
+        {
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var userId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrEmpty(userId))
+            {
+                errorMessage = "User not authenticated. Please login again.";
+                isProcessing = false;
+                return;
+            }
+
+            var booking = new Booking
+            {
+                UserId = userId,
+                ScheduleId = ScheduleId,
+                TravelDate = TravelDate,
+                TotalAmount = schedule.Price * PassengerCount,
+                Passengers = passengers.Select((p, index) => new Passenger
+                {
+                    FullName = p.FullName,
+                    Age = p.Age,
+                    Gender = p.Gender,
+                    IdProofType = p.IdProofType,
+                    IdProofNumber = p.IdProofNumber,
+                    ContactNumber = index == 0 ? p.ContactNumber : null,
+                    Email = index == 0 ? p.Email : null
+                }).ToList()
+            };
+
+            var createdBooking = await BookingService.CreateBookingAsync(booking, seatIdList);
+            NavigationManager.NavigateTo($"/booking-confirmation?bookingId={createdBooking.Id}");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error confirming booking: {ex.Message}";
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private void GoBack()
+    {
+        NavigationManager.NavigateTo(
+            $"/passenger-details?scheduleId={ScheduleId}&passengerCount={PassengerCount}&travelDate={TravelDate:yyyy-MM-dd}&seatIds={SeatIds}");
+    }
+}

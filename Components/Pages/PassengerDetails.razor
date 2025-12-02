@@ -1,0 +1,234 @@
+@page "/passenger-details"
+@rendermode InteractiveServer
+@inject ITrainService TrainService
+@inject NavigationManager NavigationManager
+@attribute [Authorize]
+
+<PageTitle>Passenger Details - TrainBookingApp</PageTitle>
+
+<div class="container mt-4">
+    @if (schedule == null)
+    {
+        <div class="text-center">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="row">
+            <div class="col-12">
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item"><a href="/search">Search</a></li>
+                        <li class="breadcrumb-item"><a href="javascript:history.back()">Seat Selection</a></li>
+                        <li class="breadcrumb-item active" aria-current="page">Passenger Details</li>
+                    </ol>
+                </nav>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-lg-8">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <h4 class="mb-0">Passenger Details</h4>
+                    </div>
+                    <div class="card-body">
+                        <EditForm Model="@passengers" OnValidSubmit="ProceedToSummary" FormName="passengerForm">
+                            <DataAnnotationsValidator />
+
+                            @for (int i = 0; i < PassengerCount; i++)
+                            {
+                                var index = i;
+                                <div class="passenger-section mb-4 p-3 border rounded">
+                                    <h5 class="mb-3">Passenger @(i + 1)</h5>
+
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">Full Name <span class="text-danger">*</span></label>
+                                            <InputText @bind-Value="passengers[index].FullName" class="form-control" placeholder="Enter full name" />
+                                            <ValidationMessage For="@(() => passengers[index].FullName)" />
+                                        </div>
+
+                                        <div class="col-md-3 mb-3">
+                                            <label class="form-label">Age <span class="text-danger">*</span></label>
+                                            <InputNumber @bind-Value="passengers[index].Age" class="form-control" placeholder="Age" />
+                                            <ValidationMessage For="@(() => passengers[index].Age)" />
+                                        </div>
+
+                                        <div class="col-md-3 mb-3">
+                                            <label class="form-label">Gender <span class="text-danger">*</span></label>
+                                            <InputSelect @bind-Value="passengers[index].Gender" class="form-select">
+                                                <option value="">Select</option>
+                                                <option value="Male">Male</option>
+                                                <option value="Female">Female</option>
+                                                <option value="Other">Other</option>
+                                            </InputSelect>
+                                            <ValidationMessage For="@(() => passengers[index].Gender)" />
+                                        </div>
+                                    </div>
+
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">ID Proof Type</label>
+                                            <InputSelect @bind-Value="passengers[index].IdProofType" class="form-select">
+                                                <option value="">Select</option>
+                                                <option value="Aadhar Card">Aadhar Card</option>
+                                                <option value="PAN Card">PAN Card</option>
+                                                <option value="Passport">Passport</option>
+                                                <option value="Driving License">Driving License</option>
+                                                <option value="Voter ID">Voter ID</option>
+                                            </InputSelect>
+                                        </div>
+
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">ID Proof Number</label>
+                                            <InputText @bind-Value="passengers[index].IdProofNumber" class="form-control" placeholder="Enter ID number" />
+                                        </div>
+                                    </div>
+
+                                    @if (i == 0)
+                                    {
+                                        <div class="row">
+                                            <div class="col-md-6 mb-3">
+                                                <label class="form-label">Contact Number <span class="text-danger">*</span></label>
+                                                <InputText @bind-Value="passengers[index].ContactNumber" class="form-control" placeholder="Enter contact number" />
+                                                <ValidationMessage For="@(() => passengers[index].ContactNumber)" />
+                                            </div>
+
+                                            <div class="col-md-6 mb-3">
+                                                <label class="form-label">Email <span class="text-danger">*</span></label>
+                                                <InputText @bind-Value="passengers[index].Email" class="form-control" type="email" placeholder="Enter email" />
+                                                <ValidationMessage For="@(() => passengers[index].Email)" />
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            }
+
+                            @if (!string.IsNullOrEmpty(errorMessage))
+                            {
+                                <div class="alert alert-danger" role="alert">
+                                    @errorMessage
+                                </div>
+                            }
+
+                            <div class="d-flex justify-content-between mt-4">
+                                <button type="button" class="btn btn-outline-secondary" @onclick="GoBack">
+                                    <i class="bi bi-arrow-left me-2"></i>Back
+                                </button>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="bi bi-arrow-right-circle me-2"></i>Review & Confirm
+                                </button>
+                            </div>
+                        </EditForm>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-4">
+                <div class="card shadow-sm sticky-top" style="top: 20px;">
+                    <div class="card-header bg-light">
+                        <h5 class="mb-0">Journey Summary</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <h6>@schedule.Train.TrainName</h6>
+                            <small class="text-muted">#@schedule.Train.TrainNumber</small>
+                        </div>
+                        <div class="mb-3">
+                            <p class="mb-1"><strong>From:</strong> @schedule.OriginStation.Name</p>
+                            <p class="mb-1"><strong>To:</strong> @schedule.DestinationStation.Name</p>
+                            <p class="mb-1"><strong>Date:</strong> @TravelDate.ToString("dd MMM yyyy")</p>
+                            <p class="mb-1"><strong>Class:</strong> @schedule.SeatClass</p>
+                        </div>
+                        <hr />
+                        <div class="d-flex justify-content-between">
+                            <strong>Total Amount:</strong>
+                            <strong class="text-primary fs-5">₹@((schedule.Price * PassengerCount).ToString("N0"))</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [SupplyParameterFromQuery]
+    public int ScheduleId { get; set; }
+
+    [SupplyParameterFromQuery]
+    public int PassengerCount { get; set; }
+
+    [SupplyParameterFromQuery]
+    public DateTime TravelDate { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? SeatIds { get; set; }
+
+    private Schedule? schedule;
+    private List<PassengerInfo> passengers = new();
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (ScheduleId <= 0 || PassengerCount <= 0 || string.IsNullOrEmpty(SeatIds))
+        {
+            NavigationManager.NavigateTo("/search");
+            return;
+        }
+
+        schedule = await TrainService.GetScheduleByIdAsync(ScheduleId);
+        
+        // Initialize passenger list
+        for (int i = 0; i < PassengerCount; i++)
+        {
+            passengers.Add(new PassengerInfo());
+        }
+    }
+
+    private void ProceedToSummary()
+    {
+        // Validate primary passenger contact details
+        if (string.IsNullOrWhiteSpace(passengers[0].ContactNumber) || 
+            string.IsNullOrWhiteSpace(passengers[0].Email))
+        {
+            errorMessage = "Please provide contact number and email for the primary passenger.";
+            return;
+        }
+
+        // Serialize passenger data
+        var passengersJson = System.Text.Json.JsonSerializer.Serialize(passengers);
+        var encodedPassengers = System.Web.HttpUtility.UrlEncode(passengersJson);
+
+        NavigationManager.NavigateTo(
+            $"/booking-summary?scheduleId={ScheduleId}&passengerCount={PassengerCount}&travelDate={TravelDate:yyyy-MM-dd}&seatIds={SeatIds}&passengers={encodedPassengers}");
+    }
+
+    private void GoBack()
+    {
+        NavigationManager.NavigateTo(
+            $"/seat-selection?scheduleId={ScheduleId}&passengerCount={PassengerCount}&travelDate={TravelDate:yyyy-MM-dd}");
+    }
+
+    public class PassengerInfo
+    {
+        [Required]
+        public string FullName { get; set; } = string.Empty;
+
+        [Required]
+        [Range(1, 120)]
+        public int Age { get; set; }
+
+        [Required]
+        public string Gender { get; set; } = string.Empty;
+
+        public string IdProofType { get; set; } = string.Empty;
+        public string IdProofNumber { get; set; } = string.Empty;
+        public string? ContactNumber { get; set; }
+        public string? Email { get; set; }
+    }
+}

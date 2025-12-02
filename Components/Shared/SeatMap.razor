@@ -1,0 +1,156 @@
+@inject IJSRuntime JSRuntime
+
+<div class="seat-map">
+    <div class="mb-3">
+        <div class="row">
+            <div class="col-auto">
+                <span class="seat-legend">
+                    <span class="seat-indicator seat-available"></span> Available
+                </span>
+            </div>
+            <div class="col-auto">
+                <span class="seat-legend">
+                    <span class="seat-indicator seat-selected"></span> Selected
+                </span>
+            </div>
+            <div class="col-auto">
+                <span class="seat-legend">
+                    <span class="seat-indicator seat-booked"></span> Booked
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <div class="seats-grid">
+        @foreach (var seat in Seats)
+        {
+            <div class="seat @GetSeatClass(seat)" 
+                 @onclick="() => ToggleSeat(seat)"
+                 style="cursor: @(seat.IsBooked ? "not-allowed" : "pointer")">
+                @seat.SeatNumber
+            </div>
+        }
+    </div>
+
+    <div class="mt-3">
+        <strong>Selected Seats (@SelectedSeats.Count/@MaxSeats):</strong>
+        @if (SelectedSeats.Any())
+        {
+            <span class="ms-2">
+                @string.Join(", ", SelectedSeats.Select(s => s.SeatNumber))
+            </span>
+        }
+        else
+        {
+            <span class="ms-2 text-muted">None</span>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public List<Seat> Seats { get; set; } = new();
+
+    [Parameter]
+    public List<Seat> SelectedSeats { get; set; } = new();
+
+    [Parameter]
+    public int MaxSeats { get; set; }
+
+    [Parameter]
+    public EventCallback<List<Seat>> OnSelectionChanged { get; set; }
+
+    private string GetSeatClass(Seat seat)
+    {
+        if (seat.IsBooked)
+            return "seat-booked";
+        if (SelectedSeats.Contains(seat))
+            return "seat-selected";
+        return "seat-available";
+    }
+
+    private async Task ToggleSeat(Seat seat)
+    {
+        if (seat.IsBooked)
+            return;
+
+        if (SelectedSeats.Contains(seat))
+        {
+            SelectedSeats.Remove(seat);
+        }
+        else
+        {
+            if (SelectedSeats.Count >= MaxSeats)
+            {
+                await JSRuntime.InvokeVoidAsync("alert", $"You can only select {MaxSeats} seat(s).");
+                return;
+            }
+            SelectedSeats.Add(seat);
+        }
+
+        await OnSelectionChanged.InvokeAsync(SelectedSeats);
+    }
+}
+
+<style>
+    .seat-map {
+        padding: 20px;
+        background-color: #f8f9fa;
+        border-radius: 8px;
+    }
+
+    .seat-legend {
+        display: inline-flex;
+        align-items: center;
+        margin-right: 15px;
+    }
+
+    .seat-indicator {
+        display: inline-block;
+        width: 20px;
+        height: 20px;
+        border-radius: 4px;
+        margin-right: 5px;
+        border: 1px solid #ddd;
+    }
+
+    .seats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+        gap: 10px;
+        margin-top: 20px;
+    }
+
+    .seat {
+        padding: 10px;
+        text-align: center;
+        border-radius: 4px;
+        border: 1px solid #ddd;
+        font-size: 12px;
+        font-weight: 500;
+        transition: all 0.2s;
+    }
+
+    .seat-available {
+        background-color: #d4edda;
+        border-color: #c3e6cb;
+    }
+
+    .seat-available:hover {
+        background-color: #b8dac0;
+        transform: scale(1.05);
+    }
+
+    .seat-selected {
+        background-color: #0d6efd;
+        color: white;
+        border-color: #0d6efd;
+    }
+
+    .seat-booked {
+        background-color: #6c757d;
+        color: white;
+        border-color: #6c757d;
+        cursor: not-allowed !important;
+    }
+</style>

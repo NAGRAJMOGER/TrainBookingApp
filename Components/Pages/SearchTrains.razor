@@ -1,0 +1,177 @@
+@page "/search"
+@rendermode InteractiveServer
+@inject IStationService StationService
+@inject ITrainService TrainService
+@inject NavigationManager NavigationManager
+
+<PageTitle>Search Trains - TrainBookingApp</PageTitle>
+
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <h2 class="mb-4">Search Trains</h2>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <div class="card shadow-sm">
+                <div class="card-body p-4">
+                    <EditForm Model="@searchModel" OnValidSubmit="HandleSearch" FormName="searchForm">
+                        <DataAnnotationsValidator />
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">From Station</label>
+                                <InputSelect @bind-Value="searchModel.OriginStationId" class="form-select">
+                                    <option value="0">Select origin station</option>
+                                    @foreach (var station in stations)
+                                    {
+                                        <option value="@station.Id">@station.Name (@station.Code)</option>
+                                    }
+                                </InputSelect>
+                                <ValidationMessage For="@(() => searchModel.OriginStationId)" />
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">To Station</label>
+                                <InputSelect @bind-Value="searchModel.DestinationStationId" class="form-select">
+                                    <option value="0">Select destination station</option>
+                                    @foreach (var station in stations)
+                                    {
+                                        <option value="@station.Id">@station.Name (@station.Code)</option>
+                                    }
+                                </InputSelect>
+                                <ValidationMessage For="@(() => searchModel.DestinationStationId)" />
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Travel Date</label>
+                                <InputDate @bind-Value="searchModel.TravelDate" class="form-control" min="@DateTime.Today.ToString("yyyy-MM-dd")" />
+                                <ValidationMessage For="@(() => searchModel.TravelDate)" />
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Number of Passengers</label>
+                                <InputNumber @bind-Value="searchModel.PassengerCount" class="form-control" min="1" max="6" />
+                                <ValidationMessage For="@(() => searchModel.PassengerCount)" />
+                            </div>
+                        </div>
+
+                        @if (!string.IsNullOrEmpty(errorMessage))
+                        {
+                            <div class="alert alert-danger" role="alert">
+                                @errorMessage
+                            </div>
+                        }
+
+                        <button type="submit" class="btn btn-primary btn-lg w-100" disabled="@isSearching">
+                            @if (isSearching)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                            }
+                            <i class="bi bi-search me-2"></i> Search Trains
+                        </button>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (searchResults != null)
+    {
+        <div class="row mt-4">
+            <div class="col-12">
+                <h3 class="mb-3">Available Trains (@searchResults.Count)</h3>
+                
+                @if (!searchResults.Any())
+                {
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle me-2"></i>
+                        No trains found for the selected route. Please try different stations.
+                    </div>
+                }
+                else
+                {
+                    @foreach (var schedule in searchResults)
+                    {
+                        <TrainCard Schedule="@schedule" 
+                                   PassengerCount="@searchModel.PassengerCount" 
+                                   TravelDate="@searchModel.TravelDate"
+                                   OnBookNow="@(() => BookTrain(schedule))" />
+                    }
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private List<Station> stations = new();
+    private List<Schedule>? searchResults;
+    private SearchModel searchModel = new();
+    private string? errorMessage;
+    private bool isSearching = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        stations = await StationService.GetAllStationsAsync();
+        searchModel.TravelDate = DateTime.Today.AddDays(1);
+    }
+
+    private async Task HandleSearch()
+    {
+        isSearching = true;
+        errorMessage = null;
+        searchResults = null;
+
+        try
+        {
+            if (searchModel.OriginStationId == searchModel.DestinationStationId)
+            {
+                errorMessage = "Origin and destination stations cannot be the same.";
+                isSearching = false;
+                return;
+            }
+
+            searchResults = await TrainService.SearchTrainsAsync(
+                searchModel.OriginStationId,
+                searchModel.DestinationStationId,
+                searchModel.TravelDate);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"An error occurred: {ex.Message}";
+        }
+        finally
+        {
+            isSearching = false;
+        }
+    }
+
+    private void BookTrain(Schedule schedule)
+    {
+        NavigationManager.NavigateTo(
+            $"/seat-selection?scheduleId={schedule.Id}&passengerCount={searchModel.PassengerCount}&travelDate={searchModel.TravelDate:yyyy-MM-dd}");
+    }
+
+    private class SearchModel
+    {
+        [Required]
+        [Range(1, int.MaxValue, ErrorMessage = "Please select an origin station")]
+        public int OriginStationId { get; set; }
+
+        [Required]
+        [Range(1, int.MaxValue, ErrorMessage = "Please select a destination station")]
+        public int DestinationStationId { get; set; }
+
+        [Required]
+        public DateTime TravelDate { get; set; } = DateTime.Today.AddDays(1);
+
+        [Required]
+        [Range(1, 6, ErrorMessage = "Passenger count must be between 1 and 6")]
+        public int PassengerCount { get; set; } = 1;
+    }
+}
