@@ -1,0 +1,86 @@
+@inject IJSRuntime JSRuntime
+
+<div class="card mb-3 shadow-sm train-card">
+    <div class="card-body">
+        <div class="row align-items-center">
+            <div class="col-md-3">
+                <h5 class="mb-1">@Schedule.Train.TrainName</h5>
+                <small class="text-muted">#@Schedule.Train.TrainNumber</small>
+            </div>
+
+            <div class="col-md-3">
+                <div class="mb-2">
+                    <strong>@Schedule.OriginStation.Code</strong>
+                    <div class="text-muted small">@Schedule.DepartureTime.ToString(@"hh\:mm")</div>
+                </div>
+            </div>
+
+            <div class="col-md-2 text-center">
+                <div class="mb-2">
+                    <i class="bi bi-arrow-right fs-5"></i>
+                    <div class="text-muted small">@FormatDuration(Schedule.Duration)</div>
+                </div>
+            </div>
+
+            <div class="col-md-2">
+                <div class="mb-2">
+                    <strong>@Schedule.DestinationStation.Code</strong>
+                    <div class="text-muted small">@Schedule.ArrivalTime.ToString(@"hh\:mm")</div>
+                </div>
+            </div>
+
+            <div class="col-md-2 text-end">
+                <div class="mb-2">
+                    <span class="badge bg-info text-dark">@Schedule.SeatClass</span>
+                    <div class="mt-2">
+                        <strong class="text-primary fs-5">₹@Schedule.Price.ToString("N0")</strong>
+                    </div>
+                    <small class="text-muted">@GetAvailableSeats() seats available</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mt-2">
+            <div class="col-12 text-end">
+                @if (GetAvailableSeats() >= PassengerCount)
+                {
+                    <button class="btn btn-primary" @onclick="OnBookNow">
+                        <i class="bi bi-ticket-perforated me-2"></i>Book Now
+                    </button>
+                }
+                else
+                {
+                    <button class="btn btn-secondary" disabled>
+                        Not Enough Seats
+                    </button>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public Schedule Schedule { get; set; } = null!;
+
+    [Parameter]
+    public int PassengerCount { get; set; }
+
+    [Parameter]
+    public DateTime TravelDate { get; set; }
+
+    [Parameter]
+    public EventCallback OnBookNow { get; set; }
+
+    private int GetAvailableSeats()
+    {
+        return Schedule.Seats?.Count(s => !s.IsBooked) ?? 0;
+    }
+
+    private string FormatDuration(TimeSpan duration)
+    {
+        if (duration.Hours > 0)
+            return $"{duration.Hours}h {duration.Minutes}m";
+        return $"{duration.Minutes}m";
+    }
+}

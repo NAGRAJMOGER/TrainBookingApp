@@ -1,0 +1,335 @@
+@page "/my-bookings"
+@rendermode InteractiveServer
+@inject IBookingService BookingService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
+@attribute [Authorize]
+
+<PageTitle>My Bookings - TrainBookingApp</PageTitle>
+
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <h2 class="mb-4">My Bookings</h2>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    }
+    else if (bookings == null || !bookings.Any())
+    {
+        <div class="row">
+            <div class="col-12">
+                <div class="alert alert-info text-center">
+                    <i class="bi bi-info-circle me-2 fs-3"></i>
+                    <h5 class="mt-2">No bookings found</h5>
+                    <p class="mb-3">You haven't made any train bookings yet.</p>
+                    <a href="/search" class="btn btn-primary">
+                        <i class="bi bi-search me-2"></i>Search Trains
+                    </a>
+                </div>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <div class="btn-group" role="group">
+                    <button type="button" class="btn @(filterStatus == null ? "btn-primary" : "btn-outline-primary")" 
+                            @onclick="() => FilterBookings(null)">
+                        All (@allBookings.Count)
+                    </button>
+                    <button type="button" class="btn @(filterStatus == BookingStatus.Confirmed ? "btn-success" : "btn-outline-success")" 
+                            @onclick="() => FilterBookings(BookingStatus.Confirmed)">
+                        Confirmed (@allBookings.Count(b => b.Status == BookingStatus.Confirmed))
+                    </button>
+                    <button type="button" class="btn @(filterStatus == BookingStatus.Cancelled ? "btn-danger" : "btn-outline-danger")" 
+                            @onclick="() => FilterBookings(BookingStatus.Cancelled)">
+                        Cancelled (@allBookings.Count(b => b.Status == BookingStatus.Cancelled))
+                    </button>
+                    <button type="button" class="btn @(filterStatus == BookingStatus.Completed ? "btn-secondary" : "btn-outline-secondary")" 
+                            @onclick="() => FilterBookings(BookingStatus.Completed)">
+                        Completed (@allBookings.Count(b => b.Status == BookingStatus.Completed))
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-12">
+                @foreach (var booking in bookings)
+                {
+                    <BookingCard Booking="@booking" 
+                                 OnViewDetails="@(() => ViewBookingDetails(booking))"
+                                 OnCancel="@(() => ShowCancelConfirmation(booking))" />
+                }
+            </div>
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(successMessage))
+    {
+        <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
+            <div class="toast show" role="alert">
+                <div class="toast-header bg-success text-white">
+                    <strong class="me-auto">Success</strong>
+                    <button type="button" class="btn-close btn-close-white" @onclick="() => successMessage = null"></button>
+                </div>
+                <div class="toast-body">
+                    @successMessage
+                </div>
+            </div>
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
+            <div class="toast show" role="alert">
+                <div class="toast-header bg-danger text-white">
+                    <strong class="me-auto">Error</strong>
+                    <button type="button" class="btn-close btn-close-white" @onclick="() => errorMessage = null"></button>
+                </div>
+                <div class="toast-body">
+                    @errorMessage
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+<!-- Booking Details Modal -->
+@if (selectedBooking != null && showDetailsModal)
+{
+    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Booking Details - PNR: @selectedBooking.PNR</h5>
+                    <button type="button" class="btn-close" @onclick="CloseDetailsModal"></button>
+                </div>
+                <div class="modal-body">
+                    <h6>Journey Details</h6>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <p class="mb-1"><strong>Train:</strong> @selectedBooking.Schedule.Train.TrainName</p>
+                            <p class="mb-1"><strong>Number:</strong> @selectedBooking.Schedule.Train.TrainNumber</p>
+                            <p class="mb-1"><strong>Class:</strong> @selectedBooking.Schedule.SeatClass</p>
+                        </div>
+                        <div class="col-md-6">
+                            <p class="mb-1"><strong>From:</strong> @selectedBooking.Schedule.OriginStation.Name</p>
+                            <p class="mb-1"><strong>To:</strong> @selectedBooking.Schedule.DestinationStation.Name</p>
+                            <p class="mb-1"><strong>Date:</strong> @selectedBooking.TravelDate.ToString("dd MMM yyyy")</p>
+                        </div>
+                    </div>
+
+                    <h6>Passengers</h6>
+                    <div class="table-responsive mb-3">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Age</th>
+                                    <th>Gender</th>
+                                    <th>Seat</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var passenger in selectedBooking.Passengers)
+                                {
+                                    <tr>
+                                        <td>@passenger.FullName</td>
+                                        <td>@passenger.Age</td>
+                                        <td>@passenger.Gender</td>
+                                        <td><span class="badge bg-primary">@passenger.SeatNumber</span></td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p class="mb-1"><strong>Booking Date:</strong> @selectedBooking.BookingDate.ToString("dd MMM yyyy HH:mm")</p>
+                            <p class="mb-1"><strong>Status:</strong> <span class="badge @GetStatusBadgeClass(selectedBooking.Status)">@selectedBooking.Status</span></p>
+                        </div>
+                        <div class="col-md-6">
+                            <p class="mb-1"><strong>Total Amount:</strong> <span class="text-primary fw-bold">₹@selectedBooking.TotalAmount.ToString("N2")</span></p>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseDetailsModal">Close</button>
+                    @if (selectedBooking.Status == BookingStatus.Confirmed && selectedBooking.TravelDate > DateTime.Today)
+                    {
+                        <button type="button" class="btn btn-danger" @onclick="() => ShowCancelConfirmation(selectedBooking)">
+                            <i class="bi bi-x-circle me-2"></i>Cancel Booking
+                        </button>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Cancel Confirmation Modal -->
+@if (bookingToCancel != null && showCancelModal)
+{
+    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Cancel Booking</h5>
+                    <button type="button" class="btn-close" @onclick="CloseCancelModal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Are you sure you want to cancel this booking?</p>
+                    <div class="alert alert-warning">
+                        <strong>PNR:</strong> @bookingToCancel.PNR<br />
+                        <strong>Train:</strong> @bookingToCancel.Schedule.Train.TrainName<br />
+                        <strong>Date:</strong> @bookingToCancel.TravelDate.ToString("dd MMM yyyy")
+                    </div>
+                    <p class="text-muted">This action cannot be undone.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseCancelModal" disabled="@isCancelling">Cancel</button>
+                    <button type="button" class="btn btn-danger" @onclick="CancelBooking" disabled="@isCancelling">
+                        @if (isCancelling)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                        }
+                        Confirm Cancellation
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Booking> allBookings = new();
+    private List<Booking> bookings = new();
+    private BookingStatus? filterStatus = null;
+    private bool isLoading = true;
+    private string? successMessage;
+    private string? errorMessage;
+
+    private Booking? selectedBooking;
+    private bool showDetailsModal = false;
+
+    private Booking? bookingToCancel;
+    private bool showCancelModal = false;
+    private bool isCancelling = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadBookings();
+    }
+
+    private async Task LoadBookings()
+    {
+        isLoading = true;
+        try
+        {
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var userId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+            if (!string.IsNullOrEmpty(userId))
+            {
+                allBookings = await BookingService.GetUserBookingsAsync(userId);
+                bookings = allBookings;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error loading bookings: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void FilterBookings(BookingStatus? status)
+    {
+        filterStatus = status;
+        bookings = status.HasValue 
+            ? allBookings.Where(b => b.Status == status.Value).ToList() 
+            : allBookings;
+    }
+
+    private void ViewBookingDetails(Booking booking)
+    {
+        selectedBooking = booking;
+        showDetailsModal = true;
+        showCancelModal = false;
+    }
+
+    private void CloseDetailsModal()
+    {
+        showDetailsModal = false;
+        selectedBooking = null;
+    }
+
+    private void ShowCancelConfirmation(Booking booking)
+    {
+        bookingToCancel = booking;
+        showCancelModal = true;
+        showDetailsModal = false;
+    }
+
+    private void CloseCancelModal()
+    {
+        showCancelModal = false;
+        bookingToCancel = null;
+    }
+
+    private async Task CancelBooking()
+    {
+        if (bookingToCancel == null)
+            return;
+
+        isCancelling = true;
+        try
+        {
+            var success = await BookingService.CancelBookingAsync(bookingToCancel.Id);
+            if (success)
+            {
+                successMessage = "Booking cancelled successfully.";
+                await LoadBookings();
+                CloseCancelModal();
+            }
+            else
+            {
+                errorMessage = "Failed to cancel booking.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error cancelling booking: {ex.Message}";
+        }
+        finally
+        {
+            isCancelling = false;
+        }
+    }
+
+    private string GetStatusBadgeClass(BookingStatus status)
+    {
+        return status switch
+        {
+            BookingStatus.Confirmed => "bg-success",
+            BookingStatus.Cancelled => "bg-danger",
+            BookingStatus.Completed => "bg-secondary",
+            _ => "bg-info"
+        };
+    }
+}

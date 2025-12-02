@@ -1,0 +1,155 @@
+@page "/seat-selection"
+@rendermode InteractiveServer
+@inject ITrainService TrainService
+@inject NavigationManager NavigationManager
+
+<PageTitle>Seat Selection - TrainBookingApp</PageTitle>
+
+<div class="container mt-4">
+    @if (schedule == null)
+    {
+        <div class="text-center">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="row">
+            <div class="col-12">
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item"><a href="/search">Search</a></li>
+                        <li class="breadcrumb-item active" aria-current="page">Seat Selection</li>
+                    </ol>
+                </nav>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-lg-8">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <h4 class="mb-0">Select Seats</h4>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <h5>@schedule.Train.TrainName (#@schedule.Train.TrainNumber)</h5>
+                            <p class="text-muted mb-0">
+                                <i class="bi bi-geo-alt-fill me-1"></i>
+                                @schedule.OriginStation.Name → @schedule.DestinationStation.Name
+                            </p>
+                            <p class="text-muted">
+                                <i class="bi bi-calendar3 me-1"></i>
+                                @TravelDate.ToString("dd MMM yyyy") | @schedule.SeatClass | ₹@schedule.Price per seat
+                            </p>
+                        </div>
+
+                        <SeatMap Seats="@availableSeats"
+                                 SelectedSeats="@selectedSeats"
+                                 MaxSeats="@PassengerCount"
+                                 OnSelectionChanged="HandleSeatSelection" />
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-4">
+                <div class="card shadow-sm sticky-top" style="top: 20px;">
+                    <div class="card-header bg-light">
+                        <h5 class="mb-0">Booking Summary</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between mb-2">
+                                <span>Passengers:</span>
+                                <strong>@PassengerCount</strong>
+                            </div>
+                            <div class="d-flex justify-content-between mb-2">
+                                <span>Price per ticket:</span>
+                                <strong>₹@schedule.Price.ToString("N0")</strong>
+                            </div>
+                            <hr />
+                            <div class="d-flex justify-content-between">
+                                <strong>Total Amount:</strong>
+                                <strong class="text-primary fs-5">₹@((schedule.Price * PassengerCount).ToString("N0"))</strong>
+                            </div>
+                        </div>
+
+                        @if (!string.IsNullOrEmpty(errorMessage))
+                        {
+                            <div class="alert alert-danger" role="alert">
+                                @errorMessage
+                            </div>
+                        }
+
+                        <button class="btn btn-primary w-100" 
+                                @onclick="ProceedToPassengerDetails" 
+                                disabled="@(selectedSeats.Count != PassengerCount)">
+                            <i class="bi bi-arrow-right-circle me-2"></i>
+                            Proceed to Passenger Details
+                        </button>
+
+                        @if (selectedSeats.Count != PassengerCount)
+                        {
+                            <small class="text-muted d-block mt-2 text-center">
+                                Please select @PassengerCount seat(s) to continue
+                            </small>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [SupplyParameterFromQuery]
+    public int ScheduleId { get; set; }
+
+    [SupplyParameterFromQuery]
+    public int PassengerCount { get; set; }
+
+    [SupplyParameterFromQuery]
+    public DateTime TravelDate { get; set; }
+
+    private Schedule? schedule;
+    private List<Seat> availableSeats = new();
+    private List<Seat> selectedSeats = new();
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (ScheduleId <= 0 || PassengerCount <= 0)
+        {
+            NavigationManager.NavigateTo("/search");
+            return;
+        }
+
+        schedule = await TrainService.GetScheduleByIdAsync(ScheduleId);
+        if (schedule != null)
+        {
+            availableSeats = schedule.Seats.ToList();
+        }
+    }
+
+    private Task HandleSeatSelection(List<Seat> seats)
+    {
+        selectedSeats = seats;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    private void ProceedToPassengerDetails()
+    {
+        if (selectedSeats.Count != PassengerCount)
+        {
+            errorMessage = $"Please select exactly {PassengerCount} seat(s).";
+            return;
+        }
+
+        var seatIds = string.Join(",", selectedSeats.Select(s => s.Id));
+        NavigationManager.NavigateTo(
+            $"/passenger-details?scheduleId={ScheduleId}&passengerCount={PassengerCount}&travelDate={TravelDate:yyyy-MM-dd}&seatIds={seatIds}");
+    }
+}
